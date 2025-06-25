@@ -11,5 +11,7 @@ public static class ServicesInstaller
     public static void CustomServicesInstaller(this IServiceCollection services)
     {
         services.AddSingleton<AppMapper>();
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     }
 }

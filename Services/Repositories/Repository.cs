@@ -76,7 +76,7 @@ public class Repository<TEntity, T>(ApplicationDbContext context) : IRepository<
 
     public async Task<TEntity?> GetByIdAsync(T id, IEnumerable<string>? navigationProperties = null)
     {
-        IQueryable<TEntity> queryable = _dbSet.Where(e => id.Equals(e.Id)).AsQueryable();
+        IQueryable<TEntity> queryable = _dbSet.AsNoTracking().Where(e => id.Equals(e.Id)).AsQueryable();
         if (navigationProperties is not null)
         {
             foreach (var property in navigationProperties)

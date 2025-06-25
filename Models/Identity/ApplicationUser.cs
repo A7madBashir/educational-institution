@@ -19,7 +19,7 @@ public class ApplicationUser : IdentityUser<Ulid>, IEntity<Ulid>
     public string? Gender { get; set; }
     public string? Nationality { get; set; }
     public string? Job { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DateOfBirth { get; set; }
     public DateTime? LastModifiedAt { get; set; }
 

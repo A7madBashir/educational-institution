@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using NSwag.Generation.Processors.Security;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,24 +31,7 @@ builder
     .AddDefaultTokenProviders()
     .AddDefaultUI();
 
-builder
-    .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddCookie(
-        "Cookies",
-        options =>
-        {
-            options.LoginPath = "/account/login";
-            // options.AccessDeniedPath = "/api/auth/unauthorized";
-            options.SlidingExpiration = true;
-            options.Cookie.HttpOnly = true;
-            options.Cookie.SameSite = SameSiteMode.None;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        }
-    )
-    .AddJwtBearer(
-        JwtBearerDefaults.AuthenticationScheme,
-        options => builder.Configuration.Bind("TokenSettings", options)
-    );
+builder.Services.AddAuthorizations(builder.Configuration);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
@@ -70,20 +54,20 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOpenApiDocument(document =>
 {
-    // document.AddSecurity(
-    //     JwtBearerDefaults.AuthenticationScheme,
-    //     new OpenApiSecurityScheme
-    //     {
-    //         Type = OpenApiSecuritySchemeType.Http,
-    //         Scheme = JwtBearerDefaults.AuthenticationScheme,
-    //         BearerFormat = "JWT",
-    //         Description = "Type into the textbox: {your JWT token}.",
-    //     }
-    // );
+    document.AddSecurity(
+        JwtBearerDefaults.AuthenticationScheme,
+        new NSwag.OpenApiSecurityScheme
+        {
+            Type = NSwag.OpenApiSecuritySchemeType.Http,
+            Scheme = JwtBearerDefaults.AuthenticationScheme,
+            BearerFormat = "JWT",
+            Description = "Type into the textbox: {your JWT token}.",
+        }
+    );
 
-    // document.OperationProcessors.Add(
-    //     new AspNetCoreOperationSecurityScopeProcessor(JwtBearerDefaults.AuthenticationScheme)
-    // );
+    document.OperationProcessors.Add(
+        new AspNetCoreOperationSecurityScopeProcessor(JwtBearerDefaults.AuthenticationScheme)
+    );
 });
 
 builder
@@ -91,6 +75,11 @@ builder
     .BindConfiguration(nameof(EmailSettings))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+if (args.Length != 0 && args[0] == "seed")
+{
+    await builder.Services.SeedData();
+}
 
 var app = builder.Build();
 
