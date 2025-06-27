@@ -6,5 +6,6 @@ public static class RepositoriesInstaller
     {
         services.AddTransient<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddTransient<IUserRepository, UserRepository>();
+        services.AddTransient<ICourseRepository, CourseRepository>();
     }
 }

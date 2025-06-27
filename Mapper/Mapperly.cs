@@ -1,6 +1,9 @@
 using EducationalInstitution.Models.Common.BaseEntity;
 using EducationalInstitution.Models.DTO.Requests;
+using EducationalInstitution.Models.DTO.Requests.Courses;
+using EducationalInstitution.Models.DTO.Responses.Courses;
 using EducationalInstitution.Models.DTO.User;
+using EducationalInstitution.Models.Entities.Courses;
 using EducationalInstitution.Models.Identity;
 using Riok.Mapperly.Abstractions;
 
@@ -33,4 +36,11 @@ public partial class AppMapper
         string name = $"{user.FirstName} {user.LastName}";
         return (string.IsNullOrEmpty(name) ? user.UserName : name) ?? "";
     }
+
+    // Course
+    public partial Course ToEntity(CreateCourse source);
+
+    public partial Course ToEntity(EditCourse source);
+
+    public partial CoursesResponse ToResponse(Course source);
 }
