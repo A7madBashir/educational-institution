@@ -3,6 +3,8 @@ using EducationalInstitution.Endpoints.Account;
 using EducationalInstitution.Extensions;
 using EducationalInstitution.Models.Identity;
 using EducationalInstitution.Models.Settings;
+using EducationalInstitution.Services;
+using EducationalInstitution.Services.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -32,9 +34,13 @@ builder
     .AddDefaultUI();
 
 builder.Services.AddAuthorizations(builder.Configuration);
+builder.Services.CustomServicesInstaller();
+builder.Services.RepositoriesInstall();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddControllersWithViews().AddControllersAsServices();
 builder.Services.AddRazorPages();
+builder.Services.AddScoped(typeof(IRepository<,>), typeof(Repository<,>));
 builder.Services.AddEndpointsApiExplorer();
 
 // Configure CORS policy

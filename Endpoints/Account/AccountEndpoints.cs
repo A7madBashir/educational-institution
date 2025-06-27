@@ -4,9 +4,13 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using EducationalInstitution.Models.DTO.Requests.Users;
+using EducationalInstitution.Models.DTO.Responses.Identity;
 using EducationalInstitution.Models.Identity;
+using EducationalInstitution.Services;
+using EducationalInstitution.Services.Repositories;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
@@ -31,20 +35,18 @@ public static class AccountEndpoints
         this IEndpointRouteBuilder endpoints
     )
     {
-        var emailSender = endpoints.ServiceProvider.GetRequiredService<
-            IEmailSender<ApplicationUser>
-        >();
+        var emailSender = endpoints.ServiceProvider.GetRequiredService<IEmailSender<ApplicationUser>>();
         var linkGenerator = endpoints.ServiceProvider.GetRequiredService<LinkGenerator>();
 
-        var routeGroup = endpoints.MapGroup("/account");
+        var routeGroup = endpoints.MapGroup("/api/account").WithTags("Account");
         routeGroup.MapIdentityApi<ApplicationUser>();
 
         endpoints
             .MapPost(
-                "/account/v2/register",
+                "/api/account/v2/register",
                 async Task<
                     Results<
-                        Ok<AccessTokenResponse>,
+                        Ok<LoginResponse>,
                         EmptyHttpResult,
                         ProblemHttpResult,
                         ValidationProblem
@@ -58,6 +60,8 @@ public static class AccountEndpoints
                 ) =>
                 {
                     var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+                    var tokenService = sp.GetRequiredService<ITokenService>();
+                    var refreshTokenService = sp.GetRequiredService<IRefreshTokenService>();
 
                     if (!userManager.SupportsUserEmail)
                     {
@@ -81,6 +85,11 @@ public static class AccountEndpoints
                     {
                         FirstName = registration.FirstName,
                         LastName = registration.LastName,
+                        Nationality = registration.Nationality,
+                        PhoneNumber = registration.PhoneNumber,
+                        Gender = registration.Gender,
+                        Job = registration.Job,
+                        DateOfBirth = registration.DateOfBirth,
                     };
                     await userStore.SetUserNameAsync(user, email, CancellationToken.None);
                     await emailStore.SetEmailAsync(user, email, CancellationToken.None);
@@ -114,44 +123,185 @@ public static class AccountEndpoints
                     }
 
                     //  await SendConfirmationEmailAsync(user, userManager, context, email);
-                    return TypedResults.Empty;
+                    var tokenResponse = await tokenService.GenerateTokenAsync(user.UserName);
+                    var refreshTokenResponse = await refreshTokenService.GenerateRefreshToken(
+                        user.UserName
+                    );
+
+                    var res = new LoginResponse
+                    {
+                        Succeeded = true,
+                        Token = tokenResponse.Token,
+                        TokenValidTo = tokenResponse.TokenValidTo,
+                        RefreshToken = refreshTokenResponse.RefreshToken,
+                        RefreshTokenValidTo = refreshTokenResponse.RefreshTokenValidTo,
+                    };
+
+                    return TypedResults.Ok(res);
                 }
             )
             .WithDescription(
                 "Modified version identity endpoints which includes more attributes for the user"
-            );
+            )
+            .WithTags("Account");
 
-        //  routeGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
-        //         ([FromBody] LoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
-        //     {
-        //         var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+        // --- Custom Login Endpoint (JWT Issuance) ---
+        endpoints
+            .MapPost(
+                "/api/account/v2/login",
+                async Task<
+                    Results<
+                        Ok<LoginResponse>,
+                        EmptyHttpResult,
+                        ProblemHttpResult,
+                        UnauthorizedHttpResult,
+                        BadRequest<string>
+                    >
+                > (
+                    [FromBody] LoginRequest request,
+                    [FromQuery] bool? useCookies,
+                    [FromQuery] bool? useSessionCookies,
+                    [FromServices] SignInManager<ApplicationUser> signInManager,
+                    [FromServices] UserManager<ApplicationUser> userManager,
+                    [FromServices] ITokenService tokenService,
+                    [FromServices] IRefreshTokenService refreshService,
+                    HttpContext httpContext
+                ) =>
+                {
+                    if (
+                        string.IsNullOrEmpty(request.Email)
+                        || string.IsNullOrEmpty(request.Password)
+                    )
+                    {
+                        return TypedResults.BadRequest("Email and password are required.");
+                    }
 
-        //         var useCookieScheme = (useCookies == true) || (useSessionCookies == true);
-        //         var isPersistent = (useCookies == true) && (useSessionCookies != true);
-        //         signInManager.AuthenticationScheme = useCookieScheme ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
+                    var user = await userManager.FindByEmailAsync(request.Email);
+                    if (user == null)
+                    {
+                        return TypedResults.Unauthorized();
+                    }
 
-        //         var result = await signInManager.PasswordSignInAsync(login.Email, login.Password, isPersistent, lockoutOnFailure: true);
+                    var useCookieScheme = (useCookies == true) || (useSessionCookies == true);
+                    var isPersistent = (useCookies == true) && (useSessionCookies != true);
+                    signInManager.AuthenticationScheme = useCookieScheme
+                        ? IdentityConstants.ApplicationScheme
+                        : JwtBearerDefaults.AuthenticationScheme;
 
-        //         if (result.RequiresTwoFactor)
-        //         {
-        //             if (!string.IsNullOrEmpty(login.TwoFactorCode))
-        //             {
-        //                 result = await signInManager.TwoFactorAuthenticatorSignInAsync(login.TwoFactorCode, isPersistent, rememberClient: isPersistent);
-        //             }
-        //             else if (!string.IsNullOrEmpty(login.TwoFactorRecoveryCode))
-        //             {
-        //                 result = await signInManager.TwoFactorRecoveryCodeSignInAsync(login.TwoFactorRecoveryCode);
-        //             }
-        //         }
+                    Microsoft.AspNetCore.Identity.SignInResult userSignIn;
 
-        //         if (!result.Succeeded)
-        //         {
-        //             return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
-        //         }
+                    // Handling user login by different auth schema
+                    if (useCookieScheme)
+                    {
+                        userSignIn = await signInManager.PasswordSignInAsync(
+                            request.Email,
+                            request.Password,
+                            isPersistent,
+                            lockoutOnFailure: true
+                        );
+                    }
+                    else
+                    {
+                        userSignIn = await signInManager.CheckPasswordSignInAsync(
+                            user,
+                            request.Password,
+                            false
+                        );
+                    }
 
-        //         // The signInManager already produced the needed response in the form of a cookie or bearer token.
-        //         return TypedResults.Empty;
-        //     });
+                    if (userSignIn.Succeeded)
+                    {
+                        var accessToken = await tokenService.GenerateTokenAsync(user.UserName);
+                        var refreshToken = await refreshService.GenerateRefreshToken(user.UserName);
+
+                        if (useCookieScheme)
+                            return TypedResults.Empty;
+                        else
+                            return TypedResults.Ok(
+                                new LoginResponse
+                                {
+                                    Succeeded = true,
+                                    Token = accessToken.Token,
+                                    TokenValidTo = accessToken.TokenValidTo,
+                                    RefreshToken = refreshToken.RefreshToken,
+                                    RefreshTokenValidTo = refreshToken.RefreshTokenValidTo,
+                                }
+                            );
+                    }
+                    else if (userSignIn.IsLockedOut)
+                    {
+                        // Account locked out.
+                        return TypedResults.Unauthorized();
+                    }
+                    else if (userSignIn.IsNotAllowed)
+                    {
+                        // Login not allowed (e.g., email not confirmed).
+                        return TypedResults.Unauthorized();
+                    }
+                    else
+                    {
+                        // Invalid credentials.
+                        return TypedResults.Unauthorized();
+                    }
+                }
+            )
+            .WithTags("Account");
+
+        routeGroup
+            .MapPost(
+                "/api/account/v2/refresh",
+                async Task<
+                    Results<
+                        Ok<LoginResponse>,
+                        EmptyHttpResult,
+                        ProblemHttpResult,
+                        UnauthorizedHttpResult,
+                        BadRequest<string>
+                    >
+                > (
+                    [FromBody] RefreshRequest refreshRequest,
+                    [FromServices] IRefreshTokenRepository repository,
+                    [FromServices] UserManager<ApplicationUser> userManager,
+                    [FromServices] IRefreshTokenService refreshTokenService,
+                    [FromServices] ITokenService tokenService
+                ) =>
+                {
+                    // validate user then revoke exist token and regenerate new one
+
+                    var refreshToken = await repository.FirstOrDefaultAsync(t =>
+                        t.Token == refreshRequest.RefreshToken
+                    );
+
+                    if (refreshToken is null)
+                        return TypedResults.BadRequest("Refresh token not found exception");
+
+                    if (!refreshToken.IsActive)
+                    {
+                        return TypedResults.BadRequest("Refresh token already revoked exception");
+                    }
+
+                    var user = await userManager.FindByIdAsync(refreshToken.UserId.ToString());
+                    var newRefreshToken = await refreshTokenService.GenerateRefreshToken(
+                        user!.UserName!
+                    );
+                    refreshToken.ReplacedByToken = newRefreshToken.RefreshToken;
+                    refreshToken.Revoked = DateTime.UtcNow;
+                    await repository.UpdateAsync(refreshToken);
+                    var tokenResult = await tokenService.GenerateTokenAsync(user!.UserName!);
+
+                    var res = new LoginResponse
+                    {
+                        Succeeded = true,
+                        Token = tokenResult.Token,
+                        TokenValidTo = tokenResult.TokenValidTo,
+                        RefreshToken = newRefreshToken.RefreshToken,
+                        RefreshTokenValidTo = newRefreshToken.RefreshTokenValidTo,
+                    };
+
+                    return TypedResults.Ok(res);
+                }
+            )
+            .WithTags("Account");
 
         return routeGroup;
     }

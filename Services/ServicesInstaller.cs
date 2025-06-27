@@ -1,4 +1,5 @@
 using EducationalInstitution.Mapper;
+using EducationalInstitution.Models.Settings;
 
 namespace EducationalInstitution.Services;
 
@@ -11,6 +12,13 @@ public static class ServicesInstaller
     public static void CustomServicesInstaller(this IServiceCollection services)
     {
         services.AddSingleton<AppMapper>();
+
+        services
+            .AddOptions<TokenSettings>()
+            .BindConfiguration(nameof(TokenSettings))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     }
