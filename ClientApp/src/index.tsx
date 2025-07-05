@@ -1,0 +1,62 @@
+import ReactDOM from 'react-dom/client'
+// Redux
+// https://github.com/rt2zz/redux-persist
+import {PersistGate} from 'redux-persist/integration/react'
+import {Provider} from 'react-redux'
+import * as _redux from './setup'
+import store, {persistor} from './setup/redux/Store'
+// Axios
+import axios from 'axios'
+
+// Apps
+import {App} from './app/App'
+import {MetronicI18nProvider} from './_metronic/i18n/Metronici18n'
+/**
+ * TIP: Replace this style import with dark styles to enable dark mode
+ *
+ * import './_metronic/assets/sass/style.dark.scss'
+ *
+ * TIP: Replace this style import with rtl styles to enable rtl mode
+ *
+ * import './_metronic/assets/css/style.rtl.css'
+ **/
+import './_metronic/assets/sass/style.scss'
+import './_metronic/assets/sass/style.react.scss'
+import {StrictMode} from 'react'
+/**
+ * Base URL of the website.
+ *
+ * @see https://facebook.github.io/create-react-app/docs/using-the-public-folder
+ */
+const {PUBLIC_URL} = process.env
+
+/**
+ * Inject Metronic interceptors for axios.
+ *
+ * @see https://github.com/axios/axios#interceptors
+ */
+_redux.setupAxios(axios, store)
+// 1. Get the root DOM element
+const container = document.getElementById('root')
+
+// 2. Check if the container exists (good practice)
+if (container) {
+  // 3. Create a root
+  const root = ReactDOM.createRoot(container)
+
+  // 4. Render your application using the new root API
+  root.render(
+    <StrictMode>
+      <MetronicI18nProvider>
+        <Provider store={store}>
+          {/* Asynchronously persist redux stores and show `SplashScreen` while it's loading. */}
+          <PersistGate persistor={persistor} loading={<div>Loading...</div>}>
+            <App basename={PUBLIC_URL} />
+          </PersistGate>
+        </Provider>
+      </MetronicI18nProvider>
+    </StrictMode>
+  )
+} else {
+  console.error('Failed to find the root element with ID "root".')
+}
