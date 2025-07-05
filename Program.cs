@@ -50,7 +50,7 @@ builder.Services.AddCors(options =>
         "AllowReactApp",
         builder =>
             builder
-                .WithOrigins("https://localhost:44479") // THIS IS YOUR REACT APP'S URL
+                .WithOrigins("http://localhost:44479") // THIS IS YOUR REACT APP'S URL || Use Configuration file to read from
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials()
@@ -104,7 +104,7 @@ else
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseCors("AllowReactApp"); // <--- APPLY YOUR CORS POLICY HERE!
+app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
 
