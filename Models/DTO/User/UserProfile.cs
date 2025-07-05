@@ -8,4 +8,6 @@ public class UserProfile
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Name { get; set; }
+    public string? UserName { get; set; }
+    public DateTime? LastLoginAt { get; set; }
 }

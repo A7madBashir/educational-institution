@@ -90,6 +90,7 @@ public static class AccountEndpoints
                         Gender = registration.Gender,
                         Job = registration.Job,
                         DateOfBirth = registration.DateOfBirth,
+                        LastLoginAt = DateTime.UtcNow
                     };
                     await userStore.SetUserNameAsync(user, email, CancellationToken.None);
                     await emailStore.SetEmailAsync(user, email, CancellationToken.None);
@@ -127,6 +128,7 @@ public static class AccountEndpoints
                     var refreshTokenResponse = await refreshTokenService.GenerateRefreshToken(
                         user.UserName
                     );
+                    
 
                     var res = new LoginResponse
                     {
@@ -213,6 +215,8 @@ public static class AccountEndpoints
                     {
                         var accessToken = await tokenService.GenerateTokenAsync(user.UserName);
                         var refreshToken = await refreshService.GenerateRefreshToken(user.UserName);
+                        user.LastLoginAt = DateTime.UtcNow;
+                        await userManager.UpdateAsync(user);
 
                         if (useCookieScheme)
                             return TypedResults.Empty;

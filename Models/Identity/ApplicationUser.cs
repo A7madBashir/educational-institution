@@ -22,6 +22,7 @@ public class ApplicationUser : IdentityUser<Ulid>, IEntity<Ulid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DateOfBirth { get; set; }
     public DateTime? LastModifiedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
 
     public ICollection<Course>? TeacherCourses { get; set; } // related to assistant teachers
     public ICollection<Course>? AssistantTeachersCourses { get; set; } // related to assistant teachers
